@@ -1,19 +1,34 @@
-const { DatabaseSync } = require('node:sqlite');
+const { createClient } = require('@libsql/client');
 const path = require('path');
 
-const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, 'restaurant.db'));
+// Online: set TURSO_DATABASE_URL (libsql://...) and TURSO_AUTH_TOKEN.
+// Locally: a plain SQLite file (restaurant.db, or DB_PATH).
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL || 'file:' + (process.env.DB_PATH || path.join(__dirname, 'restaurant.db')),
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS menu_items (
+// Turn result rows into plain objects.
+function toObjects(result) {
+  return result.rows.map((row) => Object.fromEntries(result.columns.map((c, i) => [c, row[i]])));
+}
+
+const db = {
+  all: async (sql, args = []) => toObjects(await client.execute({ sql, args })),
+  get: async (sql, args = []) => (await db.all(sql, args))[0],
+  run: (sql, args = []) => client.execute({ sql, args }),
+};
+
+db.ready = client.batch([
+  `CREATE TABLE IF NOT EXISTS menu_items (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
     description TEXT    NOT NULL DEFAULT '',
     price       INTEGER NOT NULL,          -- whole kronor
     category    TEXT    NOT NULL DEFAULT 'Other',
     sold_out    INTEGER NOT NULL DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS orders (
+  )`,
+  `CREATE TABLE IF NOT EXISTS orders (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     code           TEXT    NOT NULL UNIQUE, -- random, used in the customer's status link
     customer_name  TEXT    NOT NULL,
@@ -26,7 +41,7 @@ db.exec(`
     status         TEXT    NOT NULL DEFAULT 'New',
     paid           INTEGER NOT NULL DEFAULT 0,
     created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  );
-`);
+  )`,
+], 'write');
 
 module.exports = db;

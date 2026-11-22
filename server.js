@@ -15,6 +15,9 @@ if (!process.env.KITCHEN_PASSWORD) {
   console.warn('WARNING: KITCHEN_PASSWORD not set, using default "kitchen".');
 }
 
+// Lets async route handlers pass errors to Express.
+const ah = (fn) => (req, res, next) => fn(req, res, next).catch(next);
+
 const app = express();
 app.use(express.json());
 
@@ -42,12 +45,12 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 // ---------- Public API ----------
 app.get('/api/info', (req, res) => res.json({ name: RESTAURANT_NAME }));
 
-app.get('/api/menu', (req, res) => {
-  res.json(db.prepare(`SELECT * FROM menu_items
-    ORDER BY (SELECT MIN(id) FROM menu_items m2 WHERE m2.category = menu_items.category), name`).all());
-});
+app.get('/api/menu', ah(async (req, res) => {
+  res.json(await db.all(`SELECT * FROM menu_items
+    ORDER BY (SELECT MIN(id) FROM menu_items m2 WHERE m2.category = menu_items.category), name`));
+}));
 
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', ah(async (req, res) => {
   const { name, phone, fulfilment, address, requestedTime, items } = req.body || {};
 
   if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Name and phone are required.' });
@@ -61,10 +64,10 @@ app.post('/api/orders', (req, res) => {
   if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
 
   // Look up prices on the server so the client can't change them.
-  const getItem = db.prepare('SELECT * FROM menu_items WHERE id = ?');
   const lines = [];
   for (const { id, qty } of items) {
-    const item = getItem.get(id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid item in cart.' });
+    const item = await db.get('SELECT * FROM menu_items WHERE id = ?', [id]);
     const n = Number(qty);
     if (!item || !Number.isInteger(n) || n < 1 || n > 50) return res.status(400).json({ error: 'Invalid item in cart.' });
     if (item.sold_out) return res.status(400).json({ error: `Sorry, ${item.name} is sold out.` });
@@ -73,48 +76,48 @@ app.post('/api/orders', (req, res) => {
   const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
   const code = crypto.randomBytes(6).toString('hex');
 
-  db.prepare(`INSERT INTO orders (code, customer_name, phone, fulfilment, address, requested_time, items, total)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(code, name.trim(), phone.trim(), fulfilment, fulfilment === 'delivery' ? address.trim() : '',
-         when.toISOString(), JSON.stringify(lines), total);
+  await db.run(`INSERT INTO orders (code, customer_name, phone, fulfilment, address, requested_time, items, total)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [code, name.trim(), phone.trim(), fulfilment, fulfilment === 'delivery' ? address.trim() : '',
+         when.toISOString(), JSON.stringify(lines), total]);
 
   res.status(201).json({ code });
-});
+}));
 
-app.get('/api/orders/:code', (req, res) => {
-  const o = db.prepare('SELECT * FROM orders WHERE code = ?').get(req.params.code);
+app.get('/api/orders/:code', ah(async (req, res) => {
+  const o = await db.get('SELECT * FROM orders WHERE code = ?', [req.params.code]);
   if (!o) return res.status(404).json({ error: 'Order not found.' });
   res.json({
     id: o.id, status: o.status, paid: !!o.paid, fulfilment: o.fulfilment,
     requestedTime: o.requested_time, items: JSON.parse(o.items), total: o.total,
     swishNumber: SWISH_NUMBER, restaurant: RESTAURANT_NAME,
   });
-});
+}));
 
 // ---------- Kitchen API ----------
 app.use('/kitchen/api', kitchenAuth);
 
 // ?view=active (default) | finished (Done) | rejected (Rejected + Cancelled)
-app.get('/kitchen/api/orders', (req, res) => {
+app.get('/kitchen/api/orders', ah(async (req, res) => {
   const views = {
     active: [`status NOT IN (${FINISHED.map(() => '?').join(',')})`, FINISHED, 'ASC'],
     finished: ["status = 'Done'", [], 'DESC LIMIT 50'],
     rejected: ["status IN ('Rejected', 'Cancelled')", [], 'DESC LIMIT 50'],
   };
   const [where, params, order] = views[req.query.view] || views.active;
-  const rows = db.prepare(`SELECT * FROM orders WHERE ${where} ORDER BY requested_time ${order}`).all(...params);
+  const rows = await db.all(`SELECT * FROM orders WHERE ${where} ORDER BY requested_time ${order}`, params);
   res.json(rows.map((o) => ({ ...o, paid: !!o.paid, items: JSON.parse(o.items) })));
-});
+}));
 
-app.patch('/kitchen/api/orders/:id', (req, res) => {
+app.patch('/kitchen/api/orders/:id', ah(async (req, res) => {
   const { status, paid } = req.body || {};
   if (status !== undefined) {
     if (!STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
-    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id);
+    await db.run('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
   }
-  if (paid !== undefined) db.prepare('UPDATE orders SET paid = ? WHERE id = ?').run(paid ? 1 : 0, req.params.id);
+  if (paid !== undefined) await db.run('UPDATE orders SET paid = ? WHERE id = ?', [paid ? 1 : 0, req.params.id]);
   res.json({ ok: true });
-});
+}));
 
 function readMenuItem(body) {
   const name = String(body.name || '').trim();
@@ -129,25 +132,35 @@ function readMenuItem(body) {
   };
 }
 
-app.post('/kitchen/api/menu', (req, res) => {
+app.post('/kitchen/api/menu', ah(async (req, res) => {
   const m = readMenuItem(req.body || {});
   if (m.error) return res.status(400).json(m);
-  db.prepare('INSERT INTO menu_items (name, description, price, category, sold_out) VALUES (?, ?, ?, ?, ?)')
-    .run(m.name, m.description, m.price, m.category, m.sold_out);
+  await db.run('INSERT INTO menu_items (name, description, price, category, sold_out) VALUES (?, ?, ?, ?, ?)',
+    [m.name, m.description, m.price, m.category, m.sold_out]);
   res.status(201).json({ ok: true });
-});
+}));
 
-app.put('/kitchen/api/menu/:id', (req, res) => {
+app.put('/kitchen/api/menu/:id', ah(async (req, res) => {
   const m = readMenuItem(req.body || {});
   if (m.error) return res.status(400).json(m);
-  db.prepare('UPDATE menu_items SET name = ?, description = ?, price = ?, category = ?, sold_out = ? WHERE id = ?')
-    .run(m.name, m.description, m.price, m.category, m.sold_out, req.params.id);
+  await db.run('UPDATE menu_items SET name = ?, description = ?, price = ?, category = ?, sold_out = ? WHERE id = ?',
+    [m.name, m.description, m.price, m.category, m.sold_out, req.params.id]);
   res.json({ ok: true });
+}));
+
+app.delete('/kitchen/api/menu/:id', ah(async (req, res) => {
+  await db.run('DELETE FROM menu_items WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
 });
 
-app.delete('/kitchen/api/menu/:id', (req, res) => {
-  db.prepare('DELETE FROM menu_items WHERE id = ?').run(req.params.id);
-  res.json({ ok: true });
+db.ready.then(() => {
+  app.listen(PORT, () => console.log(`${RESTAURANT_NAME} running on http://localhost:${PORT}`));
+}).catch((err) => {
+  console.error('Could not open the database:', err.message);
+  process.exit(1);
 });
-
-app.listen(PORT, () => console.log(`${RESTAURANT_NAME} running on http://localhost:${PORT}`));
