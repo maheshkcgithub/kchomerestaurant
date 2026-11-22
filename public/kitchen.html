@@ -15,11 +15,12 @@
     </div>
   </header>
   <main>
-    <h2>Active orders</h2>
-    <div id="active"><p class="muted">Loading…</p></div>
-
-    <p style="margin-top:24px"><button class="secondary" id="finishedBtn">Show finished orders</button></p>
-    <div id="finished" hidden></div>
+    <nav class="tabs">
+      <button data-view="active" class="active">Active <span id="activeCount"></span></button>
+      <button data-view="finished">Finished</button>
+      <button data-view="rejected">Rejected / Cancelled</button>
+    </nav>
+    <div id="orders"><p class="muted">Loading…</p></div>
   </main>
 
   <script src="/static/common.js"></script>
@@ -80,39 +81,44 @@
         </div>`;
     }
 
+    let view = 'active';
+    const EMPTY = { active: 'No active orders.', finished: 'No finished orders yet.', rejected: 'No rejected or cancelled orders.' };
+
     async function load() {
+      const box = document.getElementById('orders');
       try {
-        const orders = await api('/kitchen/api/orders');
-        const ids = orders.map((o) => o.id);
+        // Always check active orders, so new ones beep even while another tab is open.
+        const active = await api('/kitchen/api/orders');
+        const ids = active.map((o) => o.id);
         if (knownIds) {
           const fresh = ids.filter((id) => !knownIds.has(id));
           fresh.forEach((id) => highlight.add(id));
           if (fresh.length) beep();
         } else {
-          orders.filter((o) => o.status === 'New').forEach((o) => highlight.add(o.id));
+          active.filter((o) => o.status === 'New').forEach((o) => highlight.add(o.id));
         }
         knownIds = new Set([...(knownIds || []), ...ids]);
-        document.getElementById('active').innerHTML =
-          orders.length ? orders.map((o) => orderCard(o, false)).join('') : '<p class="muted">No active orders.</p>';
-        document.title = orders.some((o) => o.status === 'New') ? '🔔 New order! · Kitchen' : 'Kitchen';
+        const hasNew = active.some((o) => o.status === 'New');
+        document.getElementById('activeCount').textContent = active.length ? `(${active.length})` : '';
+        document.title = hasNew ? '🔔 New order! · Kitchen' : 'Kitchen';
+
+        const orders = view === 'active' ? active : await api('/kitchen/api/orders?view=' + view);
+        box.innerHTML = orders.length
+          ? orders.map((o) => orderCard(o, view !== 'active')).join('')
+          : `<p class="muted">${EMPTY[view]}</p>`;
       } catch (e) {
-        document.getElementById('active').innerHTML = `<p class="error">${esc(e.message)}</p>`;
+        box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
       }
-      if (!document.getElementById('finished').hidden) loadFinished();
     }
 
-    async function loadFinished() {
-      const orders = await api('/kitchen/api/orders?finished=1');
-      document.getElementById('finished').innerHTML =
-        orders.length ? orders.map((o) => orderCard(o, true)).join('') : '<p class="muted">None yet.</p>';
-    }
-
-    document.getElementById('finishedBtn').onclick = (e) => {
-      const box = document.getElementById('finished');
-      box.hidden = !box.hidden;
-      e.target.textContent = box.hidden ? 'Show finished orders' : 'Hide finished orders';
-      if (!box.hidden) loadFinished();
-    };
+    document.querySelectorAll('.tabs button').forEach((btn) => {
+      btn.onclick = () => {
+        view = btn.dataset.view;
+        document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b === btn));
+        document.getElementById('orders').innerHTML = '<p class="muted">Loading…</p>';
+        load();
+      };
+    });
 
     async function update(id, body) {
       highlight.delete(id);

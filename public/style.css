@@ -82,3 +82,15 @@ label { display: block; margin: 10px 0 4px; font-weight: 500; }
 #cart { position: sticky; bottom: 0; }
 table { width: 100%; border-collapse: collapse; }
 td { padding: 4px 0; }
+.tabs { display: flex; gap: 4px; margin: 8px 0 16px; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
+.tabs button {
+  background: none;
+  color: var(--muted);
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  margin-bottom: -2px;
+  padding: 10px 14px;
+  font-weight: 600;
+}
+.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }

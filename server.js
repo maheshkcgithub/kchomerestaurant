@@ -94,12 +94,15 @@ app.get('/api/orders/:code', (req, res) => {
 // ---------- Kitchen API ----------
 app.use('/kitchen/api', kitchenAuth);
 
+// ?view=active (default) | finished (Done) | rejected (Rejected + Cancelled)
 app.get('/kitchen/api/orders', (req, res) => {
-  const placeholders = FINISHED.map(() => '?').join(',');
-  const sql = req.query.finished
-    ? `SELECT * FROM orders WHERE status IN (${placeholders}) ORDER BY requested_time DESC LIMIT 50`
-    : `SELECT * FROM orders WHERE status NOT IN (${placeholders}) ORDER BY requested_time ASC`;
-  const rows = db.prepare(sql).all(...FINISHED);
+  const views = {
+    active: [`status NOT IN (${FINISHED.map(() => '?').join(',')})`, FINISHED, 'ASC'],
+    finished: ["status = 'Done'", [], 'DESC LIMIT 50'],
+    rejected: ["status IN ('Rejected', 'Cancelled')", [], 'DESC LIMIT 50'],
+  };
+  const [where, params, order] = views[req.query.view] || views.active;
+  const rows = db.prepare(`SELECT * FROM orders WHERE ${where} ORDER BY requested_time ${order}`).all(...params);
   res.json(rows.map((o) => ({ ...o, paid: !!o.paid, items: JSON.parse(o.items) })));
 });
 
