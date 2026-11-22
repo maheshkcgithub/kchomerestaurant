@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root {
   --bg: #faf7f2;
   --card: #fff;
@@ -79,7 +80,6 @@ label { display: block; margin: 10px 0 4px; font-weight: 500; }
 .badge.unpaid { background: #ffcdd2; }
 .new-order { border: 2px solid var(--accent); box-shadow: 0 0 0 3px #f3d2c4; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-#cart { position: sticky; bottom: 0; }
 table { width: 100%; border-collapse: collapse; }
 td { padding: 4px 0; }
 .tabs { display: flex; gap: 4px; margin: 8px 0 16px; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
