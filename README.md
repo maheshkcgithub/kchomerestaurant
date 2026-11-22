@@ -5,7 +5,7 @@ A small online ordering app for a home restaurant.
 | Page | Who | What |
 |---|---|---|
 | `/` | Customers | Menu by category, cart, checkout (name, phone, pickup/delivery, time) |
-| `/order/<code>` | Customers | Live order status + Swish payment info (auto-refreshes) |
+| `/order/<code>` | Customers | Live order status (auto-refreshes) |
 | `/kitchen` | Kitchen (password) | Tabs for Received / Ready / Cancelled orders, sound on new orders |
 | `/kitchen/menu` | Kitchen (password) | Add / edit / delete dishes, mark sold out |
 
@@ -17,7 +17,7 @@ Needs Node.js 20 or newer. Locally the data is kept in a `restaurant.db` file (n
 
 ```bash
 npm install
-KITCHEN_PASSWORD=choose-a-password SWISH_NUMBER="070 123 45 67" npm start
+KITCHEN_PASSWORD=choose-a-password npm start
 ```
 
 Open http://localhost:3000. For the kitchen, open http://localhost:3000/kitchen. The browser asks for a username and password: type anything as the username and your `KITCHEN_PASSWORD` as the password.
@@ -29,7 +29,6 @@ Start by adding dishes under **Edit menu**.
 | Variable | Default | Meaning |
 |---|---|---|
 | `KITCHEN_PASSWORD` | `kitchen` | Password for the kitchen pages, **change it** |
-| `SWISH_NUMBER` | `123 456 78 90` | Shown to customers after ordering |
 | `RESTAURANT_NAME` | `KC Home Restaurant` | Page title |
 | `PORT` | `3000` | Web server port |
 | `DB_PATH` | `./restaurant.db` | Local database file (used when `TURSO_DATABASE_URL` is not set) |
@@ -61,7 +60,6 @@ Render runs the app; Turso stores the menu and orders (Render's free plan delete
    - `TURSO_DATABASE_URL` = the URL from Turso
    - `TURSO_AUTH_TOKEN` = the token from Turso
    - `KITCHEN_PASSWORD` = your kitchen password
-   - `SWISH_NUMBER` = your Swish number
    - `RESTAURANT_NAME` = your restaurant's name
 5. Click **Create Web Service**. After a few minutes you get a link like `https://kchomerestaurant.onrender.com`.
 6. Open `/kitchen/menu` on that link and add your dishes. Share the main link with customers.
@@ -74,7 +72,7 @@ Keep the kitchen page open while you take orders, which keeps the app awake.
 ## Order emails (Brevo, free)
 
 Customers can enter an email address at checkout (optional). They get an email when the order is
-**received** (with the Swish details), **ready**, or **cancelled**.
+**received**, **ready**, or **cancelled**.
 
 1. Sign up at https://www.brevo.com (free plan: 300 emails per day).
 2. **Senders, domains & dedicated IPs → Senders → Add a sender**: add the email address you want to send from

@@ -6,7 +6,6 @@ const { sendOrderEmail } = require('./mailer');
 
 const PORT = process.env.PORT || 3000;
 const KITCHEN_PASSWORD = process.env.KITCHEN_PASSWORD || 'kitchen';
-const SWISH_NUMBER = process.env.SWISH_NUMBER || '123 456 78 90';
 const RESTAURANT_NAME = process.env.RESTAURANT_NAME || 'KC Home Restaurant';
 
 const STATUSES = ['Received', 'Ready', 'Cancelled'];
@@ -27,7 +26,7 @@ async function emailCustomer(req, where, value) {
   const order = await db.get(`SELECT * FROM orders WHERE ${where} = ?`, [value]);
   if (!order) return;
   const statusUrl = `${req.protocol}://${req.get('host')}/order/${order.code}`;
-  sendOrderEmail(order, { restaurant: RESTAURANT_NAME, swishNumber: SWISH_NUMBER, statusUrl });
+  sendOrderEmail(order, { restaurant: RESTAURANT_NAME, statusUrl });
 }
 
 // ---------- Kitchen password (HTTP Basic Auth, any username) ----------
@@ -102,7 +101,7 @@ app.get('/api/orders/:code', ah(async (req, res) => {
   res.json({
     id: o.id, status: o.status, fulfilment: o.fulfilment,
     requestedTime: o.requested_time, items: JSON.parse(o.items), total: o.total,
-    swishNumber: SWISH_NUMBER, restaurant: RESTAURANT_NAME,
+    restaurant: RESTAURANT_NAME,
   });
 }));
 

@@ -15,7 +15,7 @@ const fmtTime = (iso) => new Date(iso).toLocaleString('en-GB', {
 });
 
 // Which statuses send an email, and what they say.
-function message(order, { restaurant, swishNumber }) {
+function message(order) {
   const when = fmtTime(order.requested_time);
   const pickup = order.fulfilment === 'pickup';
   switch (order.status) {
@@ -23,7 +23,6 @@ function message(order, { restaurant, swishNumber }) {
       return {
         subject: `We received your order #${order.id}`,
         intro: `Thank you for your order! We will have it ready for ${pickup ? 'pickup' : 'delivery'} on ${when}.`,
-        extra: `<p>Please pay <b>${order.total} kr</b> by Swish to <b>${esc(swishNumber)}</b> and write "Order ${order.id}" in the message.</p>`,
       };
     case 'Cancelled':
       return {
@@ -40,9 +39,9 @@ function message(order, { restaurant, swishNumber }) {
   }
 }
 
-async function sendOrderEmail(order, { restaurant, swishNumber, statusUrl }) {
+async function sendOrderEmail(order, { restaurant, statusUrl }) {
   if (!API_KEY || !FROM || !order.email) return;
-  const msg = message(order, { restaurant, swishNumber });
+  const msg = message(order);
   if (!msg) return;
 
   const items = JSON.parse(order.items);
@@ -56,7 +55,6 @@ async function sendOrderEmail(order, { restaurant, swishNumber, statusUrl }) {
         <tr><td style="padding-top:8px;border-top:1px solid #ddd"><b>Total</b></td><td style="text-align:right;padding-top:8px;border-top:1px solid #ddd"><b>${order.total} kr</b></td></tr>
       </table>
       <p>${order.fulfilment === 'pickup' ? 'Pickup' : 'Delivery to ' + esc(order.address)} · ${fmtTime(order.requested_time)}</p>
-      ${msg.extra || ''}
       <p><a href="${esc(statusUrl)}" style="display:inline-block;background:#c0562b;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Follow your order</a></p>
       <p style="font-size:13px;color:#555">Or open this link: <a href="${esc(statusUrl)}" style="color:#c0562b">${esc(statusUrl)}</a></p>
       <p style="color:#888;font-size:12px">Order #${order.id}</p>
