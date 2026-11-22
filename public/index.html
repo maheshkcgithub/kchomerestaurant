@@ -36,6 +36,9 @@
       <label for="phone">Phone</label>
       <input id="phone" type="tel" required autocomplete="tel">
 
+      <label for="email">Email <span class="muted">(optional, for order updates)</span></label>
+      <input id="email" type="email" autocomplete="email">
+
       <label>Pickup or delivery</label>
       <div class="segmented">
         <label><input type="radio" name="fulfilment" value="pickup" checked> 🏠 Pickup</label>
@@ -198,6 +201,7 @@
           body: {
             name: $('name').value,
             phone: $('phone').value,
+            email: $('email').value,
             fulfilment: fulfilment(),
             address: $('address').value,
             requestedTime: new Date($('time').value).toISOString(),

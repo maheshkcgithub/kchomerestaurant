@@ -66,7 +66,7 @@
           </div>
           <div class="muted">
             ${o.fulfilment === 'delivery' ? '🚗 Delivery: ' + esc(o.address) : '🏠 Pickup'} ·
-            📞 <a href="tel:${esc(o.phone)}">${esc(o.phone)}</a>
+            📞 <a href="tel:${esc(o.phone)}">${esc(o.phone)}</a>${o.email ? ` · ✉️ ${esc(o.email)}` : ''}
           </div>
           <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(i.name)}</li>`).join('')}</ul>
           <div><strong>${kr(o.total)}</strong></div>

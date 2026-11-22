@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
 const db = require('./db');
+const { sendOrderEmail } = require('./mailer');
 
 const PORT = process.env.PORT || 3000;
 const KITCHEN_PASSWORD = process.env.KITCHEN_PASSWORD || 'kitchen';
@@ -19,7 +20,16 @@ if (!process.env.KITCHEN_PASSWORD) {
 const ah = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
 const app = express();
+app.set('trust proxy', true); // Render runs behind a proxy; needed for the https:// links in emails
 app.use(express.json());
+
+// Send an email for this order's current status (in the background).
+async function emailCustomer(req, where, value) {
+  const order = await db.get(`SELECT * FROM orders WHERE ${where} = ?`, [value]);
+  if (!order) return;
+  const statusUrl = `${req.protocol}://${req.get('host')}/order/${order.code}`;
+  sendOrderEmail(order, { restaurant: RESTAURANT_NAME, swishNumber: SWISH_NUMBER, statusUrl });
+}
 
 // ---------- Kitchen password (HTTP Basic Auth, any username) ----------
 function kitchenAuth(req, res, next) {
@@ -51,9 +61,11 @@ app.get('/api/menu', ah(async (req, res) => {
 }));
 
 app.post('/api/orders', ah(async (req, res) => {
-  const { name, phone, fulfilment, address, requestedTime, items } = req.body || {};
+  const { name, phone, email, fulfilment, address, requestedTime, items } = req.body || {};
 
   if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Name and phone are required.' });
+  const mail = String(email || '').trim();
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return res.status(400).json({ error: 'Please check your email address.' });
   if (!['pickup', 'delivery'].includes(fulfilment)) return res.status(400).json({ error: 'Choose pickup or delivery.' });
   if (fulfilment === 'delivery' && !address?.trim()) return res.status(400).json({ error: 'Address is required for delivery.' });
 
@@ -76,12 +88,13 @@ app.post('/api/orders', ah(async (req, res) => {
   const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
   const code = crypto.randomBytes(6).toString('hex');
 
-  await db.run(`INSERT INTO orders (code, customer_name, phone, fulfilment, address, requested_time, items, total)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [code, name.trim(), phone.trim(), fulfilment, fulfilment === 'delivery' ? address.trim() : '',
+  await db.run(`INSERT INTO orders (code, customer_name, phone, email, fulfilment, address, requested_time, items, total)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [code, name.trim(), phone.trim(), mail, fulfilment, fulfilment === 'delivery' ? address.trim() : '',
          when.toISOString(), JSON.stringify(lines), total]);
 
   res.status(201).json({ code });
+  emailCustomer(req, 'code', code).catch((err) => console.error(err));
 }));
 
 app.get('/api/orders/:code', ah(async (req, res) => {
@@ -113,7 +126,8 @@ app.patch('/kitchen/api/orders/:id', ah(async (req, res) => {
   const { status, paid } = req.body || {};
   if (status !== undefined) {
     if (!STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
-    await db.run('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
+    const result = await db.run('UPDATE orders SET status = ? WHERE id = ? AND status != ?', [status, req.params.id, status]);
+    if (result.rowsAffected) emailCustomer(req, 'id', req.params.id).catch((err) => console.error(err));
   }
   if (paid !== undefined) await db.run('UPDATE orders SET paid = ? WHERE id = ?', [paid ? 1 : 0, req.params.id]);
   res.json({ ok: true });

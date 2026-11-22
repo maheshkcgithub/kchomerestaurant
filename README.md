@@ -35,6 +35,9 @@ Start by adding dishes under **Edit menu**.
 | `DB_PATH` | `./restaurant.db` | Local database file (used when `TURSO_DATABASE_URL` is not set) |
 | `TURSO_DATABASE_URL` | (none) | Online database, e.g. `libsql://kchomerestaurant-yourname.turso.io` |
 | `TURSO_AUTH_TOKEN` | (none) | Token for the online database |
+| `BREVO_API_KEY` | (none) | Brevo API key for order emails (emails are off without it) |
+| `MAIL_FROM` | (none) | Sender address, must be verified in Brevo |
+| `TIMEZONE` | `Europe/Stockholm` | Time zone used for times in emails |
 
 ## Put it online for free (Render + Turso)
 
@@ -67,6 +70,22 @@ Every time new code is pushed to that branch, Render updates the site automatica
 
 **Free plan note:** after 15 minutes without visitors the app sleeps, and the next visitor waits up to about a minute.
 Keep the kitchen page open while you take orders, which keeps the app awake.
+
+## Order emails (Brevo, free)
+
+Customers can enter an email address at checkout (optional). They get an email when the order is
+**received** (with the Swish details), **accepted or rejected**, and **ready**.
+
+1. Sign up at https://www.brevo.com (free plan: 300 emails per day).
+2. **Senders, domains & dedicated IPs → Senders → Add a sender**: add the email address you want to send from
+   (e.g. your Gmail) and confirm it with the code Brevo emails you.
+3. **SMTP & API → API keys → Generate a new API key**. Copy it (keep it secret).
+4. In Render → your service → **Environment**, add:
+   - `BREVO_API_KEY` = the API key
+   - `MAIL_FROM` = the sender address from step 2
+5. Save. Render restarts the app. Place a test order with your own email address.
+
+Without your own domain, some emails may end up in the customer's spam folder.
 
 ## Notes
 
