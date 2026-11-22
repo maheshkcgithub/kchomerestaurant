@@ -33,9 +33,6 @@
       <label for="name">Name</label>
       <input id="name" required autocomplete="name">
 
-      <label for="phone">Phone</label>
-      <input id="phone" type="tel" required autocomplete="tel">
-
       <label for="email">Email <span class="muted">(optional, for order updates)</span></label>
       <input id="email" type="email" autocomplete="email">
 
@@ -200,7 +197,6 @@
           method: 'POST',
           body: {
             name: $('name').value,
-            phone: $('phone').value,
             email: $('email').value,
             fulfilment: fulfilment(),
             address: $('address').value,

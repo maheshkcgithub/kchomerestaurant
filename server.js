@@ -61,9 +61,9 @@ app.get('/api/menu', ah(async (req, res) => {
 }));
 
 app.post('/api/orders', ah(async (req, res) => {
-  const { name, phone, email, fulfilment, address, requestedTime, items } = req.body || {};
+  const { name, email, fulfilment, address, requestedTime, items } = req.body || {};
 
-  if (!name?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Name and phone are required.' });
+  if (!name?.trim()) return res.status(400).json({ error: 'Please enter your name.' });
   const mail = String(email || '').trim();
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return res.status(400).json({ error: 'Please check your email address.' });
   if (!['pickup', 'delivery'].includes(fulfilment)) return res.status(400).json({ error: 'Choose pickup or delivery.' });
@@ -90,7 +90,7 @@ app.post('/api/orders', ah(async (req, res) => {
 
   await db.run(`INSERT INTO orders (code, customer_name, phone, email, fulfilment, address, requested_time, items, total)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [code, name.trim(), phone.trim(), mail, fulfilment, fulfilment === 'delivery' ? address.trim() : '',
+    [code, name.trim(), '', mail, fulfilment, fulfilment === 'delivery' ? address.trim() : '',
          when.toISOString(), JSON.stringify(lines), total]);
 
   res.status(201).json({ code });
