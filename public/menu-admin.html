@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edit menu</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header><h1>Edit menu</h1><a href="/kitchen">← Kitchen</a></header>
+  <main>
+    <form id="form" class="card">
+      <h2 id="formTitle" style="margin-top:0">Add dish</h2>
+      <input type="hidden" id="id">
+      <label for="name">Name</label>
+      <input id="name" required>
+      <label for="description">Short description</label>
+      <input id="description">
+      <label for="price">Price (kr)</label>
+      <input id="price" type="number" min="0" step="1" required>
+      <label for="category">Category</label>
+      <input id="category" list="categories" placeholder="e.g. Starters, Mains, Drinks">
+      <datalist id="categories"></datalist>
+      <div class="actions">
+        <button type="submit">Save</button>
+        <button type="button" class="secondary" id="cancelEdit" hidden>Cancel edit</button>
+      </div>
+      <div id="error" class="error"></div>
+    </form>
+
+    <div id="list"></div>
+  </main>
+
+  <script src="/static/common.js"></script>
+  <script>
+    let items = [];
+
+    async function load() {
+      items = await api('/api/menu');
+      const cats = [...new Set(items.map((m) => m.category))];
+      document.getElementById('categories').innerHTML = cats.map((c) => `<option value="${esc(c)}">`).join('');
+      document.getElementById('list').innerHTML = items.length === 0 ? '<p class="muted">No dishes yet. Add one above.</p>' :
+        cats.map((cat) => `
+          <h2>${esc(cat)}</h2>
+          ${items.filter((m) => m.category === cat).map((m) => `
+            <div class="card ${m.sold_out ? 'soldout' : ''}">
+              <div class="row">
+                <div>
+                  <strong>${esc(m.name)}</strong> <span class="price">${kr(m.price)}</span>
+                  ${m.sold_out ? '<span class="badge">Sold out</span>' : ''}
+                  <div class="muted">${esc(m.description)}</div>
+                </div>
+                <div class="actions" style="margin:0">
+                  <button class="secondary" onclick="toggleSoldOut(${m.id})">${m.sold_out ? 'Back in stock' : 'Mark sold out'}</button>
+                  <button class="secondary" onclick="edit(${m.id})">Edit</button>
+                  <button class="secondary" onclick="remove(${m.id})">Delete</button>
+                </div>
+              </div>
+            </div>`).join('')}
+        `).join('');
+    }
+
+    function field(id) { return document.getElementById(id); }
+
+    function resetForm() {
+      document.getElementById('form').reset();
+      field('id').value = '';
+      field('formTitle').textContent = 'Add dish';
+      field('cancelEdit').hidden = true;
+    }
+
+    function edit(id) {
+      const m = items.find((x) => x.id === id);
+      field('id').value = m.id;
+      field('name').value = m.name;
+      field('description').value = m.description;
+      field('price').value = m.price;
+      field('category').value = m.category;
+      field('formTitle').textContent = 'Edit dish';
+      field('cancelEdit').hidden = false;
+      window.scrollTo(0, 0);
+    }
+    field('cancelEdit').onclick = resetForm;
+
+    async function toggleSoldOut(id) {
+      const m = items.find((x) => x.id === id);
+      await api('/kitchen/api/menu/' + id, { method: 'PUT', body: { ...m, sold_out: !m.sold_out } });
+      load();
+    }
+
+    async function remove(id) {
+      const m = items.find((x) => x.id === id);
+      if (!confirm(`Delete "${m.name}"? Tip: use "Mark sold out" if it's only for today.`)) return;
+      await api('/kitchen/api/menu/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    document.getElementById('form').onsubmit = async (e) => {
+      e.preventDefault();
+      field('error').textContent = '';
+      const id = field('id').value;
+      const existing = items.find((x) => x.id == id);
+      const body = {
+        name: field('name').value,
+        description: field('description').value,
+        price: Number(field('price').value),
+        category: field('category').value,
+        sold_out: existing ? existing.sold_out : 0,
+      };
+      try {
+        await api(id ? '/kitchen/api/menu/' + id : '/kitchen/api/menu', { method: id ? 'PUT' : 'POST', body });
+        resetForm();
+        load();
+      } catch (ex) {
+        field('error').textContent = ex.message;
+      }
+    };
+
+    load();
+  </script>
+</body>
+</html>

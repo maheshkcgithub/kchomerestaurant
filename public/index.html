@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order food</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header><h1 id="title">Menu</h1></header>
+  <main>
+    <div id="menu"><p class="muted">Loading menu…</p></div>
+
+    <div id="cart" class="card" hidden>
+      <div class="row">
+        <strong id="cartSummary"></strong>
+        <button id="checkoutBtn">Checkout</button>
+      </div>
+    </div>
+
+    <form id="checkout" class="card" hidden>
+      <h2>Your order</h2>
+      <table id="orderLines"></table>
+      <p><strong>Total: <span id="total"></span></strong></p>
+
+      <label for="name">Name</label>
+      <input id="name" required>
+
+      <label for="phone">Phone</label>
+      <input id="phone" type="tel" required>
+
+      <label>Pickup or delivery</label>
+      <select id="fulfilment">
+        <option value="pickup">Pickup</option>
+        <option value="delivery">Delivery</option>
+      </select>
+
+      <div id="addressBox" hidden>
+        <label for="address">Delivery address</label>
+        <textarea id="address" rows="2"></textarea>
+      </div>
+
+      <label for="time">When do you want it?</label>
+      <input id="time" type="datetime-local" required>
+
+      <p class="muted">Payment by Swish. The number is shown after you place the order.</p>
+      <div class="actions">
+        <button type="submit" id="placeBtn">Place order</button>
+        <button type="button" class="secondary" id="backBtn">Back to menu</button>
+      </div>
+      <div id="error" class="error"></div>
+    </form>
+  </main>
+
+  <script src="/static/common.js"></script>
+  <script>
+    const cart = {}; // id -> qty
+    let menu = [];
+
+    api('/api/info').then((i) => { document.getElementById('title').textContent = i.name; document.title = i.name; });
+
+    async function loadMenu() {
+      menu = await api('/api/menu');
+      const el = document.getElementById('menu');
+      if (menu.length === 0) { el.innerHTML = '<p class="muted">The menu is empty right now.</p>'; return; }
+
+      const byCategory = {};
+      for (const m of menu) (byCategory[m.category] ||= []).push(m);
+
+      el.innerHTML = Object.entries(byCategory).map(([cat, items]) => `
+        <h2>${esc(cat)}</h2>
+        ${items.map((m) => `
+          <div class="card ${m.sold_out ? 'soldout' : ''}">
+            <div class="row">
+              <div>
+                <strong>${esc(m.name)}</strong> <span class="price">${kr(m.price)}</span>
+                <div class="muted">${esc(m.description)}</div>
+              </div>
+              ${m.sold_out ? '<span class="badge">Sold out</span>' : `
+                <div class="qty">
+                  <button class="secondary" onclick="change(${m.id}, -1)">−</button>
+                  <span id="q${m.id}">${cart[m.id] || 0}</span>
+                  <button onclick="change(${m.id}, 1)">+</button>
+                </div>`}
+            </div>
+          </div>`).join('')}
+      `).join('');
+    }
+
+    function change(id, delta) {
+      cart[id] = Math.max(0, (cart[id] || 0) + delta);
+      if (!cart[id]) delete cart[id];
+      document.getElementById('q' + id).textContent = cart[id] || 0;
+      renderCart();
+    }
+
+    function cartLines() {
+      return Object.entries(cart).map(([id, qty]) => ({ item: menu.find((m) => m.id == id), qty }));
+    }
+
+    function renderCart() {
+      const lines = cartLines();
+      const count = lines.reduce((s, l) => s + l.qty, 0);
+      const total = lines.reduce((s, l) => s + l.qty * l.item.price, 0);
+      document.getElementById('cart').hidden = count === 0;
+      document.getElementById('cartSummary').textContent = `${count} item(s) · ${kr(total)}`;
+      document.getElementById('orderLines').innerHTML = lines.map((l) =>
+        `<tr><td>${l.qty} × ${esc(l.item.name)}</td><td style="text-align:right">${kr(l.qty * l.item.price)}</td></tr>`).join('');
+      document.getElementById('total').textContent = kr(total);
+      if (count === 0) showMenu();
+    }
+
+    function showMenu() {
+      document.getElementById('checkout').hidden = true;
+      document.getElementById('menu').hidden = false;
+      document.getElementById('cart').hidden = Object.keys(cart).length === 0;
+    }
+
+    document.getElementById('checkoutBtn').onclick = () => {
+      document.getElementById('menu').hidden = true;
+      document.getElementById('cart').hidden = true;
+      document.getElementById('checkout').hidden = false;
+      // Default time: 1 hour from now, rounded to 15 minutes. Can't pick the past.
+      const t = document.getElementById('time');
+      const toLocal = (d) => new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      t.min = toLocal(new Date());
+      if (!t.value) {
+        const d = new Date(Date.now() + 60 * 60000);
+        d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+        t.value = toLocal(d);
+      }
+      window.scrollTo(0, 0);
+    };
+    document.getElementById('backBtn').onclick = showMenu;
+
+    document.getElementById('fulfilment').onchange = (e) => {
+      const delivery = e.target.value === 'delivery';
+      document.getElementById('addressBox').hidden = !delivery;
+      document.getElementById('address').required = delivery;
+    };
+
+    document.getElementById('checkout').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('placeBtn');
+      const err = document.getElementById('error');
+      err.textContent = '';
+      btn.disabled = true;
+      try {
+        const { code } = await api('/api/orders', {
+          method: 'POST',
+          body: {
+            name: document.getElementById('name').value,
+            phone: document.getElementById('phone').value,
+            fulfilment: document.getElementById('fulfilment').value,
+            address: document.getElementById('address').value,
+            requestedTime: new Date(document.getElementById('time').value).toISOString(),
+            items: Object.entries(cart).map(([id, qty]) => ({ id: Number(id), qty })),
+          },
+        });
+        location.href = '/order/' + code;
+      } catch (ex) {
+        err.textContent = ex.message;
+        btn.disabled = false;
+        loadMenu(); // refresh in case something became sold out
+      }
+    };
+
+    loadMenu();
+  </script>
+</body>
+</html>
