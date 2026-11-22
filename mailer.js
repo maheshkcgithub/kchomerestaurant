@@ -63,6 +63,7 @@ async function sendOrderEmail(order, { restaurant, swishNumber, statusUrl }) {
       <p>${order.fulfilment === 'pickup' ? 'Pickup' : 'Delivery to ' + esc(order.address)} · ${fmtTime(order.requested_time)}</p>
       ${msg.extra || ''}
       <p><a href="${esc(statusUrl)}" style="display:inline-block;background:#c0562b;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Follow your order</a></p>
+      <p style="font-size:13px;color:#555">Or open this link: <a href="${esc(statusUrl)}" style="color:#c0562b">${esc(statusUrl)}</a></p>
       <p style="color:#888;font-size:12px">Order #${order.id}</p>
     </div>`;
 
