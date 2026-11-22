@@ -56,6 +56,15 @@
     </form>
   </main>
 
+  <footer class="site-footer">
+    <!-- Photo credit (required by the photo's CC BY-SA 4.0 license). Fill in the photographer's name from the Wikimedia page. -->
+    <p id="photoCredit" hidden>
+      Banner photo: “Grandmother preparing food inside traditional kitchen” by PHOTOGRAPHER NAME,
+      <a href="https://commons.wikimedia.org/wiki/File:Grandmother_preparing_food_inside_traditional_kitchen_(edited).jpg" target="_blank" rel="noopener">Wikimedia Commons</a>,
+      <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>
+    </p>
+  </footer>
+
   <div id="cart" class="cart-bar" hidden>
     <div class="cart-bar-inner">
       <div>
@@ -71,6 +80,11 @@
     const cart = {}; // id -> qty
     let menu = [];
     const $ = (id) => document.getElementById(id);
+
+    // Banner photo: shown only if public/img/hero.jpg exists.
+    const heroImg = new Image();
+    heroImg.onload = () => { document.querySelector('.hero').classList.add('has-photo'); $('photoCredit').hidden = false; };
+    heroImg.src = '/static/img/hero.jpg';
 
     api('/api/info').then((i) => { $('title').textContent = i.name; document.title = i.name; });
 
