@@ -70,14 +70,9 @@ label { display: block; margin: 10px 0 4px; font-weight: 500; }
   font-size: 0.85rem;
   background: #eee;
 }
-.badge.New { background: #ffe082; }
-.badge.Accepted { background: #b3e5fc; }
-.badge.Cooking { background: #ffcc80; }
+.badge.Received { background: #ffe082; }
 .badge.Ready { background: #c8e6c9; }
-.badge.Done { background: #e0e0e0; }
-.badge.Rejected, .badge.Cancelled { background: #ffcdd2; }
-.badge.paid { background: #c8e6c9; }
-.badge.unpaid { background: #ffcdd2; }
+.badge.Cancelled { background: #ffcdd2; }
 .new-order { border: 2px solid var(--accent); box-shadow: 0 0 0 3px #f3d2c4; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 table { width: 100%; border-collapse: collapse; }

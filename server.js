@@ -9,8 +9,7 @@ const KITCHEN_PASSWORD = process.env.KITCHEN_PASSWORD || 'kitchen';
 const SWISH_NUMBER = process.env.SWISH_NUMBER || '123 456 78 90';
 const RESTAURANT_NAME = process.env.RESTAURANT_NAME || 'KC Home Restaurant';
 
-const STATUSES = ['New', 'Accepted', 'Cooking', 'Ready', 'Done', 'Rejected', 'Cancelled'];
-const FINISHED = ['Done', 'Rejected', 'Cancelled'];
+const STATUSES = ['Received', 'Ready', 'Cancelled'];
 
 if (!process.env.KITCHEN_PASSWORD) {
   console.warn('WARNING: KITCHEN_PASSWORD not set, using default "kitchen".');
@@ -88,8 +87,8 @@ app.post('/api/orders', ah(async (req, res) => {
   const total = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
   const code = crypto.randomBytes(6).toString('hex');
 
-  await db.run(`INSERT INTO orders (code, customer_name, phone, email, fulfilment, address, requested_time, items, total)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  await db.run(`INSERT INTO orders (code, status, customer_name, phone, email, fulfilment, address, requested_time, items, total)
+              VALUES (?, 'Received', ?, ?, ?, ?, ?, ?, ?, ?)`,
     [code, name.trim(), '', mail, fulfilment, fulfilment === 'delivery' ? address.trim() : '',
          when.toISOString(), JSON.stringify(lines), total]);
 
@@ -101,7 +100,7 @@ app.get('/api/orders/:code', ah(async (req, res) => {
   const o = await db.get('SELECT * FROM orders WHERE code = ?', [req.params.code]);
   if (!o) return res.status(404).json({ error: 'Order not found.' });
   res.json({
-    id: o.id, status: o.status, paid: !!o.paid, fulfilment: o.fulfilment,
+    id: o.id, status: o.status, fulfilment: o.fulfilment,
     requestedTime: o.requested_time, items: JSON.parse(o.items), total: o.total,
     swishNumber: SWISH_NUMBER, restaurant: RESTAURANT_NAME,
   });
@@ -110,26 +109,25 @@ app.get('/api/orders/:code', ah(async (req, res) => {
 // ---------- Kitchen API ----------
 app.use('/kitchen/api', kitchenAuth);
 
-// ?view=active (default) | finished (Done) | rejected (Rejected + Cancelled)
+// ?view=received (default, oldest time first) | ready | cancelled (newest first)
 app.get('/kitchen/api/orders', ah(async (req, res) => {
   const views = {
-    active: [`status NOT IN (${FINISHED.map(() => '?').join(',')})`, FINISHED, 'ASC'],
-    finished: ["status = 'Done'", [], 'DESC LIMIT 50'],
-    rejected: ["status IN ('Rejected', 'Cancelled')", [], 'DESC LIMIT 50'],
+    received: ['Received', 'ASC'],
+    ready: ['Ready', 'DESC LIMIT 50'],
+    cancelled: ['Cancelled', 'DESC LIMIT 50'],
   };
-  const [where, params, order] = views[req.query.view] || views.active;
-  const rows = await db.all(`SELECT * FROM orders WHERE ${where} ORDER BY requested_time ${order}`, params);
-  res.json(rows.map((o) => ({ ...o, paid: !!o.paid, items: JSON.parse(o.items) })));
+  const [status, order] = views[req.query.view] || views.received;
+  const rows = await db.all(`SELECT * FROM orders WHERE status = ? ORDER BY requested_time ${order}`, [status]);
+  res.json(rows.map((o) => ({ ...o, items: JSON.parse(o.items) })));
 }));
 
 app.patch('/kitchen/api/orders/:id', ah(async (req, res) => {
-  const { status, paid } = req.body || {};
+  const { status } = req.body || {};
   if (status !== undefined) {
     if (!STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     const result = await db.run('UPDATE orders SET status = ? WHERE id = ? AND status != ?', [status, req.params.id, status]);
     if (result.rowsAffected) emailCustomer(req, 'id', req.params.id).catch((err) => console.error(err));
   }
-  if (paid !== undefined) await db.run('UPDATE orders SET paid = ? WHERE id = ?', [paid ? 1 : 0, req.params.id]);
   res.json({ ok: true });
 }));
 

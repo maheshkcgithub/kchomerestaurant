@@ -16,16 +16,15 @@
   </header>
   <main>
     <nav class="tabs">
-      <button data-view="active" class="active">Active <span id="activeCount"></span></button>
-      <button data-view="finished">Finished</button>
-      <button data-view="rejected">Rejected / Cancelled</button>
+      <button data-view="received" class="active">Received <span id="activeCount"></span></button>
+      <button data-view="ready">Ready</button>
+      <button data-view="cancelled">Cancelled</button>
     </nav>
     <div id="orders"><p class="muted">Loading…</p></div>
   </main>
 
   <script src="/static/common.js"></script>
   <script>
-    const NEXT = { New: 'Accepted', Accepted: 'Cooking', Cooking: 'Ready', Ready: 'Done' };
     let knownIds = null;          // order ids seen so far (null = first load)
     const highlight = new Set();  // new orders not yet touched
     let soundOn = false;
@@ -52,15 +51,13 @@
       });
     }
 
-    function orderCard(o, finished) {
-      const next = NEXT[o.status];
+    function orderCard(o) {
       return `
         <div class="card ${highlight.has(o.id) ? 'new-order' : ''}">
           <div class="row">
             <div>
               <strong>#${o.id} · ${esc(o.customer_name)}</strong>
               <span class="badge ${o.status}">${o.status}</span>
-              <span class="badge ${o.paid ? 'paid' : 'unpaid'}">${o.paid ? 'Paid' : 'Not paid'}</span>
             </div>
             <strong>${fmtTime(o.requested_time)}</strong>
           </div>
@@ -70,41 +67,36 @@
           </div>
           <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(i.name)}</li>`).join('')}</ul>
           <div><strong>${kr(o.total)}</strong></div>
+          ${o.status === 'Received' ? `
           <div class="actions">
-            ${next ? `<button onclick="update(${o.id}, {status: '${next}'})">→ ${next}</button>` : ''}
-            ${o.status === 'New' ? `<button class="secondary" onclick="confirmStatus(${o.id}, 'Rejected')">Reject</button>` : ''}
-            ${!finished && o.status !== 'New' ? `<button class="secondary" onclick="confirmStatus(${o.id}, 'Cancelled')">Cancel</button>` : ''}
-            <label style="margin:0;display:flex;align-items:center;gap:6px;font-weight:normal">
-              <input type="checkbox" style="width:auto" ${o.paid ? 'checked' : ''} onchange="update(${o.id}, {paid: this.checked})"> Paid
-            </label>
-          </div>
+            <button onclick="update(${o.id}, {status: 'Ready'})">✓ Ready</button>
+            <button class="secondary" onclick="confirmStatus(${o.id}, 'Cancelled')">Cancel order</button>
+          </div>` : ''}
         </div>`;
     }
 
-    let view = 'active';
-    const EMPTY = { active: 'No active orders.', finished: 'No finished orders yet.', rejected: 'No rejected or cancelled orders.' };
+    let view = 'received';
+    const EMPTY = { received: 'No orders waiting.', ready: 'No ready orders yet.', cancelled: 'No cancelled orders.' };
 
     async function load() {
       const box = document.getElementById('orders');
       try {
-        // Always check active orders, so new ones beep even while another tab is open.
+        // Always check received orders, so new ones beep even while another tab is open.
         const active = await api('/kitchen/api/orders');
         const ids = active.map((o) => o.id);
         if (knownIds) {
           const fresh = ids.filter((id) => !knownIds.has(id));
           fresh.forEach((id) => highlight.add(id));
           if (fresh.length) beep();
-        } else {
-          active.filter((o) => o.status === 'New').forEach((o) => highlight.add(o.id));
         }
         knownIds = new Set([...(knownIds || []), ...ids]);
-        const hasNew = active.some((o) => o.status === 'New');
+        const hasNew = active.some((o) => highlight.has(o.id));
         document.getElementById('activeCount').textContent = active.length ? `(${active.length})` : '';
         document.title = hasNew ? '🔔 New order! · Kitchen' : 'Kitchen';
 
-        const orders = view === 'active' ? active : await api('/kitchen/api/orders?view=' + view);
+        const orders = view === 'received' ? active : await api('/kitchen/api/orders?view=' + view);
         box.innerHTML = orders.length
-          ? orders.map((o) => orderCard(o, view !== 'active')).join('')
+          ? orders.map(orderCard).join('')
           : `<p class="muted">${EMPTY[view]}</p>`;
       } catch (e) {
         box.innerHTML = `<p class="error">${esc(e.message)}</p>`;
@@ -127,7 +119,7 @@
     }
 
     function confirmStatus(id, status) {
-      if (confirm(`Mark order #${id} as ${status}?`)) update(id, { status });
+      if (confirm(`Cancel order #${id}? The customer gets an email if they gave one.`)) update(id, { status });
     }
 
     load();

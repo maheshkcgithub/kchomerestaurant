@@ -19,21 +19,16 @@ function message(order, { restaurant, swishNumber }) {
   const when = fmtTime(order.requested_time);
   const pickup = order.fulfilment === 'pickup';
   switch (order.status) {
-    case 'New':
+    case 'Received':
       return {
         subject: `We received your order #${order.id}`,
-        intro: `Thank you for your order! We will confirm it shortly.`,
+        intro: `Thank you for your order! We will have it ready for ${pickup ? 'pickup' : 'delivery'} on ${when}.`,
         extra: `<p>Please pay <b>${order.total} kr</b> by Swish to <b>${esc(swishNumber)}</b> and write "Order ${order.id}" in the message.</p>`,
       };
-    case 'Accepted':
+    case 'Cancelled':
       return {
-        subject: `Your order #${order.id} is accepted`,
-        intro: `Good news, we have accepted your order. It will be ready for ${pickup ? 'pickup' : 'delivery'} on ${when}.`,
-      };
-    case 'Rejected':
-      return {
-        subject: `Sorry, we can't take order #${order.id}`,
-        intro: `Unfortunately we are not able to take your order this time. If you already paid, we will refund you. Sorry for the trouble!`,
+        subject: `Your order #${order.id} is cancelled`,
+        intro: `Unfortunately we had to cancel your order. If you already paid, we will refund you. Sorry for the trouble!`,
       };
     case 'Ready':
       return {

@@ -6,10 +6,10 @@ A small online ordering app for a home restaurant.
 |---|---|---|
 | `/` | Customers | Menu by category, cart, checkout (name, phone, pickup/delivery, time) |
 | `/order/<code>` | Customers | Live order status + Swish payment info (auto-refreshes) |
-| `/kitchen` | Kitchen (password) | Active orders sorted by requested time, status buttons, Paid checkbox, sound on new orders |
+| `/kitchen` | Kitchen (password) | Tabs for Received / Ready / Cancelled orders, sound on new orders |
 | `/kitchen/menu` | Kitchen (password) | Add / edit / delete dishes, mark sold out |
 
-Order statuses: **New → Accepted → Cooking → Ready → Done** (or Rejected / Cancelled).
+Order statuses: **Received → Ready**, or **Cancelled**.
 
 ## Run it
 
@@ -74,7 +74,7 @@ Keep the kitchen page open while you take orders, which keeps the app awake.
 ## Order emails (Brevo, free)
 
 Customers can enter an email address at checkout (optional). They get an email when the order is
-**received** (with the Swish details), **accepted or rejected**, and **ready**.
+**received** (with the Swish details), **ready**, or **cancelled**.
 
 1. Sign up at https://www.brevo.com (free plan: 300 emails per day).
 2. **Senders, domains & dedicated IPs → Senders → Add a sender**: add the email address you want to send from

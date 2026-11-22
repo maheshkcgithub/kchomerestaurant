@@ -40,8 +40,8 @@ async function setup() {
       requested_time TEXT    NOT NULL,        -- ISO timestamp
       items          TEXT    NOT NULL,        -- JSON: [{name, price, qty}]
       total          INTEGER NOT NULL,
-      status         TEXT    NOT NULL DEFAULT 'New',
-      paid           INTEGER NOT NULL DEFAULT 0,
+      status         TEXT    NOT NULL DEFAULT 'Received', -- Received | Ready | Cancelled
+      paid           INTEGER NOT NULL DEFAULT 0,  -- no longer used
       created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
   ], 'write');
@@ -51,6 +51,13 @@ async function setup() {
   if (!cols.some((c) => c.name === 'email')) {
     await client.execute("ALTER TABLE orders ADD COLUMN email TEXT NOT NULL DEFAULT ''");
   }
+
+  // Orders from before the statuses were simplified to Received / Ready / Cancelled.
+  await client.batch([
+    "UPDATE orders SET status = 'Received' WHERE status IN ('New', 'Accepted', 'Cooking')",
+    "UPDATE orders SET status = 'Ready' WHERE status = 'Done'",
+    "UPDATE orders SET status = 'Cancelled' WHERE status = 'Rejected'",
+  ], 'write');
 }
 db.ready = setup();
 
