@@ -42,11 +42,7 @@
             </table>
             <p><strong>Total: ${kr(o.total)}</strong></p>
           </div>
-          ${o.status === 'Cancelled' ? '' : `
-          <div class="card">
-            <strong>Please pay ${kr(o.total)} by Swish to ${esc(o.swishNumber)}</strong>
-            <div class="muted">Write "Order ${o.id}" in the message.</div>
-          </div>`}`;
+          `;
       } catch (e) {
         document.getElementById('content').innerHTML = `<p class="error">${esc(e.message)}</p>`;
       }
