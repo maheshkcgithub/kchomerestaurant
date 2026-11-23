@@ -71,7 +71,7 @@ Keep the kitchen page open while you take orders, which keeps the app awake.
 
 ## Order emails (Brevo, free)
 
-Customers can enter an email address at checkout (optional). They get an email when the order is
+Customers enter their email address at checkout (required). They get an email when the order is
 **received**, **ready**, or **cancelled**.
 
 1. Sign up at https://www.brevo.com (free plan: 300 emails per day).

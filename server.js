@@ -63,7 +63,8 @@ app.post('/api/orders', ah(async (req, res) => {
 
   if (!name?.trim()) return res.status(400).json({ error: 'Please enter your name.' });
   const mail = String(email || '').trim();
-  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return res.status(400).json({ error: 'Please check your email address.' });
+  if (!mail) return res.status(400).json({ error: 'Please enter your email address.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return res.status(400).json({ error: 'Please check your email address.' });
   if (!['pickup', 'delivery'].includes(fulfilment)) return res.status(400).json({ error: 'Choose pickup or delivery.' });
   if (fulfilment === 'delivery' && !address?.trim()) return res.status(400).json({ error: 'Address is required for delivery.' });
 
